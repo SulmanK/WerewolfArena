@@ -1,116 +1,206 @@
-# AgentBeats Green - Werewolf Benchmark
+# AgentBeats Green - Werewolf Social Reasoning Benchmark
 
-## Run a single game
+A reproducible social deduction benchmark for evaluating agents using the Werewolf game.
+This repo provides a green evaluator (A2A server) and a purple agent (A2A player), plus
+local and Docker workflows for AgentBeats submissions.
 
+## What this benchmark evaluates
+This benchmark focuses on social reasoning in multi-agent settings:
+- Strategic reasoning under uncertainty
+- Deception and persuasion (wolves vs villagers)
+- Resistance to manipulation
+- Multi-step planning across rounds
+
+## How it works
+Your purple agent plays Werewolf against NPCs. The green agent runs games, records logs,
+and computes aggregate metrics. Results are emitted as JSON and can be submitted to the
+leaderboard repo.
+
+Data flow:
+AgentBeats -> Green (A2A) -> Purple (A2A) + NPCs -> Results -> Leaderboard
+
+## Metrics (current implementation)
+This repo uses deterministic heuristics and aggregate scoring (no external judge):
+- Win rate, survival rate
+- Vote accuracy, misvote rate, flip rates
+- Seer discovery rate, doctor protection rate
+- IRP (identity recognition proxy), VSS (vote skill score), KRE (key role effectiveness)
+- Safety flags (toxic, pii)
+
+See details in `docs/deployment_design.md` and `docs/design.md`.
+
+## Reproducibility note
+Game mechanics are seeded (role assignment, order, tie-breaking). If you use an external
+LLM (Gemini proxy), outputs can still vary slightly across runs. For best stability:
+- Keep `shuffle_seed` fixed
+- Pin images/tags
+- Use deterministic proxy settings (enabled by default in `scripts/a2a_gemini_proxy.py`)
+
+## Quickstart (local)
+Single game:
 ```
 python -m benchmark.runner --seed 123 --max-turns 4 --max-rounds 4 --output fixtures/golden_score.json --log-jsonl fixtures/sample_log.jsonl
 ```
 
-## Run multiple seeds and aggregate
-
+Multi-seed aggregate:
 ```
 python -m benchmark.multi --seeds-file configs/seeds.txt --max-turns 4 --max-rounds 4 --output fixtures/aggregate.json
 ```
 
-## Tests
-
+Agent vs NPC (role-balanced):
 ```
-python -m pytest scorer/tests/test_score.py benchmark/tests/test_protocol.py
-```
-
-## Structure
-- configs/: task/config seeds (placeholders).
-- benchmark/: game engine, runner, multi-seed aggregator, protocol, logging, (stub) A2A server.
-- agents/: scripted baseline and stubs for A2A/LLM.
-- scorer/: metrics and aggregation.
-- fixtures/: sample log/score outputs.
-- docker/: Dockerfile and entrypoint stub.
-- scripts/: CI smoke script.
-
-## Notes
-- Current default is offline scripted baseline; A2A server/adapter are stubs (HTTP echo + scripted response).
-- Online mode (opt-in): start an A2A endpoint (e.g., `python scripts/a2a_gemini_proxy.py` with `GEMINI_API_KEY`) and run with `--a2a-endpoint http://localhost:8080`. Default proxy model: `gemini-2.5-flash-lite`; override with `--model`.
-- Agent vs NPC mode: add `--a2a-seats` or `--a2a-roles` to route only selected seats/roles to A2A; all others remain scripted.
-- Proxy logging: set `LOG_FULL_PROMPT=1` to log full prompts; otherwise logs show a prompt hash + length.
-- Proxy log files: use `--log-dir logs` to write a new timestamped log file each run.
-- Dockerfile installs requirements.txt if present; adjust as we add deps.
-- Stub A2A server: `python -m benchmark.a2a_server` (returns scripted actions); HTTP client stub in `agents/a2a_adapter.py`.
-- Safety heuristics are simple keyword/regex checks; no external services or classifiers.
-- CI smoke: `python scripts/ci_smoke.py` or `make ci`.
-- Optional A2A mode: pass `--a2a-endpoint http://host:port` to runner; actions will be fetched from that endpoint per observation (scripted fallback if no endpoint).
-- Metrics: vote accuracy/focus, misvotes, flip rates, survival, and soft safety flags as proxies for deception/detection; aligned with paper emphasis (win/loss and voting behavior).
-- Agent vs NPC logs include `agent_seat`, `agent_role`, `game_index`, and `seed` in each JSONL record; `manifest.json` maps game index to seed/role.
-
-## Purple agent contract (A2A)
-Your evaluated agent is an A2A endpoint that receives observations and returns a single JSON action:
-- **Endpoint**: `POST /` (JSON body).
-- **Required response**: `{"type": "speak|vote|night_power", "content"?: "...", "target"?: "Name"}`
-- **Inputs**: role, phase, remaining players, graveyard, debate so far, private info (if any).
-- **Stateless**: the green agent provides all needed state each turn.
-
-To swap models, point the A2A endpoint at a different model implementation (e.g., Gemini, OpenAI, local), and keep the same input/output JSON schema.
-
-## Demo script outline (for video)
-1) Build/run: `python -m benchmark.runner --seed 123 --max-turns 4 --max-rounds 4 --output fixtures/golden_score.json --log-jsonl fixtures/sample_log.jsonl`
-2) Show scorecard JSON and tail JSONL log.
-3) Optional: `python -m benchmark.a2a_server` (stub) and run with `--a2a-endpoint http://localhost:8080` to illustrate A2A wiring.
-4) Multi-seed aggregate: `python -m benchmark.multi --seeds-file configs/seeds.txt --output fixtures/aggregate.json`
-
-## Make targets
-```
-make run    # run a seeded game and write outputs
-make smoke  # run minimal tests
-make multi  # run multiple seeds and aggregate
-make ci     # run smoke across seeds
+python -m benchmark.agent_vs_npc --a2a-endpoint http://localhost:8080 --num-games 12 --shuffle-seed 20206 --output fixtures/agent_vs_npc_12.json --log-dir fixtures/agent_vs_npc_logs
 ```
 
-## Quick setup and demo (offline default, optional API mode)
-1) Install deps: `pip install -r requirements.txt`
-2) Offline run (default, no keys needed):  
-   `python -m benchmark.runner --seed 123 --max-turns 4 --max-rounds 4 --output fixtures/golden_score.json --log-jsonl fixtures/sample_log.jsonl`
-3) Multi-seed aggregate:  
-   `python -m benchmark.multi --seeds-file configs/seeds.txt --max-turns 4 --max-rounds 4 --output fixtures/aggregate.json`
-4) Optional A2A/LLM mode (once you have an A2A endpoint, e.g., Gemini proxy):  
-   - Set provider env (e.g., `GEMINI_API_KEY=...`) in your proxy.  
-   - Run the proxy: `python scripts/a2a_gemini_proxy.py --model gemini-2.5-flash-lite --host 0.0.0.0 --port 8080`.  
-   - Run benchmark with delegation:  
-     `python -m benchmark.runner --seed 123 --max-turns 4 --max-rounds 4 --a2a-endpoint http://localhost:8080 --output fixtures/gemini_score.json --log-jsonl fixtures/gemini_log.jsonl`  
-   - Agent vs NPC (single seat):  
-     `python -m benchmark.runner --seed 123 --max-turns 4 --max-rounds 4 --a2a-endpoint http://localhost:8080 --a2a-seats Hayley --output fixtures/gemini_score.json --log-jsonl fixtures/gemini_log.jsonl`  
-   - Agent vs NPC (by role):  
-     `python -m benchmark.runner --seed 123 --max-turns 4 --max-rounds 4 --a2a-endpoint http://localhost:8080 --a2a-roles Werewolf --output fixtures/gemini_score.json --log-jsonl fixtures/gemini_log.jsonl`  
-   - Agent vs NPC (role-balanced 40 games):  
-     `python -m benchmark.agent_vs_npc --a2a-endpoint http://localhost:8080 --num-games 40 --shuffle-seed 2026 --output fixtures/agent_vs_npc_40.json --log-dir fixtures/agent_vs_npc_logs`  
-   - Agent vs NPC (quick 12 games):  
-     `python -m benchmark.agent_vs_npc --a2a-endpoint http://localhost:8080 --num-games 12 --shuffle-seed 2026 --output fixtures/agent_vs_npc_12.json --log-dir fixtures/agent_vs_npc_logs`  
-   - Agent vs NPC (preset):  
-     `python -m benchmark.agent_vs_npc --a2a-endpoint http://localhost:8080 --preset 12 --shuffle-seed 2026 --output fixtures/agent_vs_npc_12.json --log-dir fixtures/agent_vs_npc_logs`  
-   - Agent vs NPC (role split override):  
-     `python -m benchmark.agent_vs_npc --a2a-endpoint http://localhost:8080 --num-games 12 --role-weights werewolf=3,seer=3,doctor=3,villager=3 --shuffle-seed 2026 --output fixtures/agent_vs_npc_12.json --log-dir fixtures/agent_vs_npc_logs`  
-   - Agent vs NPC (metrics sanity check for first 3 games):  
-     `python -m benchmark.agent_vs_npc --a2a-endpoint http://localhost:8080 --num-games 12 --shuffle-seed 2026 --sanity-check 3 --output fixtures/agent_vs_npc_12.json --log-dir fixtures/agent_vs_npc_logs`  
-   - Multi-game output is written in a summary JSON format (status, num_games, performance_metrics, roles_played, advanced_metrics).
-   - `performance_metrics.irs` and `performance_metrics.vrs` map to IRP and VSS (paper-inspired, heuristic).
-   - Per-game logs include `agent_seat` and `agent_role`; summary records include `roles`. `manifest.json` in the log dir maps game index to seed/role.
-   - Note: offline scripted remains the default; API mode is opt-in.
-   - To load `.env` automatically: `python -m dotenv run -- python scripts/a2a_gemini_proxy.py --model gemini-2.5-flash-lite --host 0.0.0.0 --port 8080`.
+## Tested commands (local)
+```
+python -m dotenv run -- python scripts/a2a_gemini_proxy.py --model gemini-2.5-flash-lite --host 0.0.0.0 --port 8080 --log-dir logs
+python -m benchmark.agent_vs_npc --a2a-endpoint http://localhost:8080 --num-games 12 --sanity-check 12 --shuffle-seed 20206 --output fixtures/agent_vs_npc_12.json --log-dir fixtures/agent_vs_npc_logs
+```
 
+## Docker (local integration)
+Requires a local `.env` file with your Gemini key:
+```
+GEMINI_API_KEY=your_key_here
+```
 
-Commands
+```
+docker compose -f infra/docker-compose.agentbeats.yml up --build --abort-on-container-exit
+```
 
-- python -m dotenv run -- python scripts/a2a_gemini_proxy.py --model gemini-2.5-flash-lite --host 0.0.0.0 --port 8080 --log-dir logs
+## Testing your agent (local)
+1) Build your purple agent image.
+```
+docker build -t my-purple-agent -f infra/Dockerfile.purple .
+```
 
-- python -m benchmark.agent_vs_npc --a2a-endpoint http://localhost:8080 --num-games 12 --sanity-check 12 --shuffle-seed 20206 --output fixtures/agent_vs_npc_12.json --log-dir fixtures/agent_vs_npc_logs
+2) Update compose to point to your purple image (in `infra/docker-compose.agentbeats.yml`).
 
+3) Run the evaluation.
+```
+docker compose -f infra/docker-compose.agentbeats.yml up --abort-on-container-exit
+```
 
-- build out agents: docker compose -f infra/docker-compose.agentbeats.yml up --build --abort-on-container-exit
+4) Check results.
+```
+cat results/agentbeats_docker_results.json | jq .performance_metrics
+```
 
-- Pushed to GCR
+Expected output format (shape):
+```
+{
+  "status": "complete",
+  "num_games": 12,
+  "games_completed": 12,
+  "performance_metrics": {
+    "irs": 0.0,
+    "vrs": 0.0,
+    "sr": 0.0,
+    "win_rate": 0.0,
+    "games_survived": 0,
+    "games_won": 0,
+    "total_games": 12
+  },
+  "roles_played": {
+    "werewolf": 0,
+    "villager": 0,
+    "seer": 0,
+    "doctor": 0
+  },
+  "advanced_metrics": {
+    "avg_kre": 0.0,
+    "avg_irp": 0.0,
+    "avg_vss": 0.0,
+    "safety_counts": {
+      "toxic": 0,
+      "pii": 0
+    }
+  }
+}
+```
+
+## Build and push images (GHCR)
+```
 docker build -t agentbeats_green_agent -f infra/Dockerfile.green .
 docker build -t agentbeats_purple_agent -f infra/Dockerfile.purple .
 docker tag agentbeats_green_agent ghcr.io/sulmank/agentbeats-green:latest
 docker tag agentbeats_purple_agent ghcr.io/sulmank/agentbeats-purple:latest
 docker push ghcr.io/sulmank/agentbeats-green:latest
 docker push ghcr.io/sulmank/agentbeats-purple:latest
+```
 
+## Deployment to AgentBeats
+Step 1: Build and push images (see GHCR section above).
 
+Step 2: Register on AgentBeats
+- Go to agentbeats.dev
+- Register green and purple agents
+- Copy both `agentbeats_id` values
+
+Step 3: Submit to leaderboard
+- Fork the leaderboard repo
+- Add GitHub Actions secret: `GEMINI_API_KEY`
+- Update `scenario.toml`:
+```
+[green_agent]
+agentbeats_id = "YOUR_GREEN_ID"
+env = { GEMINI_API_KEY = "${GEMINI_API_KEY}" }
+
+[[participants]]
+agentbeats_id = "YOUR_PURPLE_ID"
+name = "agent"
+env = { GEMINI_API_KEY = "${GEMINI_API_KEY}" }
+
+[config]
+num_tasks = 40
+```
+- Commit/push, open PR, merge
+
+## AgentBeats submission (leaderboard repo)
+1) Register green and purple agents on AgentBeats.
+2) Fork the leaderboard repo and edit `scenario.toml`.
+3) Push and open a PR; merge to update the leaderboard.
+
+Example `scenario.toml`:
+```
+[green_agent]
+agentbeats_id = "YOUR_GREEN_ID"
+env = { GEMINI_API_KEY = "${GEMINI_API_KEY}" }
+
+[[participants]]
+agentbeats_id = "YOUR_PURPLE_ID"
+name = "agent"
+env = { GEMINI_API_KEY = "${GEMINI_API_KEY}" }
+
+[config]
+num_tasks = 40
+```
+
+## A2A contract (purple agent)
+Endpoint:
+- `GET /.well-known/agent-card.json`
+- `POST /` with JSON body
+
+Expected response schema:
+```
+{"type": "speak|vote|night_power", "content"?: "...", "target"?: "Name"}
+```
+
+## Repo map
+- `benchmark/` game engine, runner, A2A protocol, logs
+- `green_agent/` A2A green evaluator server
+- `agents/` scripted baselines and adapters
+- `scorer/` metrics and aggregation
+- `infra/` Dockerfiles and compose
+- `scripts/` Gemini proxy and helpers
+- `docs/` design and deployment docs
+
+## Docs
+- `docs/deployment_design.md`
+- `docs/design.md`
+- `docs/design_agent_vs_npc.md`
+
+## Tests
+```
+python -m pytest scorer/tests/test_score.py benchmark/tests/test_protocol.py
+```

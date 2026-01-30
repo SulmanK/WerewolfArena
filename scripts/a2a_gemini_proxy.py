@@ -25,6 +25,10 @@ import google.generativeai as genai
 DEFAULT_MODEL = os.environ.get("MODEL_ID", "gemini-2.5-flash-lite")
 DEFAULT_TEMPERATURE = float(os.environ.get("MODEL_TEMPERATURE", "0.0"))
 DEFAULT_MAX_OUTPUT_TOKENS = int(os.environ.get("MODEL_MAX_TOKENS", "256"))
+DEFAULT_TOP_P = float(os.environ.get("MODEL_TOP_P", "1.0"))
+DEFAULT_TOP_K = int(os.environ.get("MODEL_TOP_K", "1"))
+DEFAULT_CANDIDATE_COUNT = int(os.environ.get("MODEL_CANDIDATE_COUNT", "1"))
+DEFAULT_DETERMINISTIC = True
 
 
 def format_prompt(obs: Dict, strict: bool = False) -> str:
@@ -85,11 +89,24 @@ def call_model(
     model: str, temperature: float, max_tokens: int, obs: Dict, *, strict: bool = False
 ) -> tuple[Dict, str, str]:
     prompt = format_prompt(obs, strict=strict)
+    # Deterministic-ish settings for Gemini: clamp sampling and candidates.
+    if DEFAULT_DETERMINISTIC:
+        temperature = 0.0
+        top_p = 1.0
+        top_k = 1
+        candidate_count = 1
+    else:
+        top_p = DEFAULT_TOP_P
+        top_k = DEFAULT_TOP_K
+        candidate_count = DEFAULT_CANDIDATE_COUNT
     response = genai.GenerativeModel(model).generate_content(
         prompt,
         generation_config={
             "temperature": temperature,
             "max_output_tokens": max_tokens,
+            "top_p": top_p,
+            "top_k": top_k,
+            "candidate_count": candidate_count,
         },
     )
     # Parse JSON action from text

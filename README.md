@@ -19,6 +19,11 @@ leaderboard repo.
 Data flow:
 AgentBeats -> Green (A2A) -> Purple (A2A) + NPCs -> Results -> Leaderboard
 
+## Links
+- Green Agent: https://agentbeats.dev/SulmanK/werewolfarena
+- Purple Agent: https://agentbeats.dev/SulmanK/werewolfarena-purple
+- Leaderboard Repo: https://github.com/SulmanK/Werewolf-Arena-Benchmark-Leaderboard
+
 ## Metrics (current implementation)
 This repo uses deterministic heuristics and aggregate scoring (no external judge):
 - Win rate, survival rate

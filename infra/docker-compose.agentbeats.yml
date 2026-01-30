@@ -61,7 +61,7 @@ services:
       - GREEN_AGENT_URL=http://green_agent:9009
       - PURPLE_AGENT_URL=http://purple_agent:8100
       - NUM_TASKS=40
-    command: python run_agentbeats_docker.py
+    entrypoint: ["python", "run_agentbeats_docker.py"]
     volumes:
       - ../results:/app/results
 

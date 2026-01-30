@@ -5,6 +5,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
@@ -27,4 +28,5 @@ EXPOSE 9009
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import httpx; httpx.get('http://localhost:9009/.well-known/agent-card.json')" || exit 1
 
-CMD ["python", "-m", "green_agent.server", "--host", "0.0.0.0", "--port", "9009"]
+ENTRYPOINT ["python", "-m", "green_agent.server"]
+CMD ["--host", "0.0.0.0", "--port", "9009"]

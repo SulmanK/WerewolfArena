@@ -37,10 +37,51 @@ def _get_message_text(context: RequestContext) -> str:
     return ""
 
 
-def _run_agent_vs_npc(payload: Dict[str, Any]) -> Dict[str, Any]:
+def _extract_participant_endpoint(payload: Dict[str, Any]) -> Optional[str]:
     participant = payload.get("participant")
+    if isinstance(participant, dict):
+        endpoint = participant.get("endpoint") or participant.get("url")
+        if endpoint:
+            return str(endpoint)
+    elif isinstance(participant, str):
+        return participant
+
+    participants = payload.get("participants")
+    if isinstance(participants, list):
+        for entry in participants:
+            if isinstance(entry, dict):
+                endpoint = entry.get("endpoint") or entry.get("url")
+                if endpoint:
+                    return str(endpoint)
+            elif isinstance(entry, str):
+                return entry
+    elif isinstance(participants, dict):
+        for value in participants.values():
+            if isinstance(value, dict):
+                endpoint = value.get("endpoint") or value.get("url")
+                if endpoint:
+                    return str(endpoint)
+            elif isinstance(value, str):
+                return value
+
+    for key in ("participant_endpoint", "endpoint", "purple_agent_url"):
+        if key in payload and payload[key]:
+            return str(payload[key])
+
+    env_endpoint = os.environ.get("PURPLE_AGENT_URL")
+    if env_endpoint:
+        return env_endpoint
+
+    return None
+
+
+def _run_agent_vs_npc(payload: Dict[str, Any]) -> Dict[str, Any]:
+    participant = _extract_participant_endpoint(payload)
     if not participant:
-        raise ValueError("Missing required field: participant")
+        raise ValueError(
+            "Missing required participant endpoint. Expected 'participant' or "
+            "'participants' in payload, or PURPLE_AGENT_URL env var."
+        )
 
     config = payload.get("config", {})
     num_games = int(config.get("num_games", config.get("num_tasks", 40)))
@@ -128,6 +169,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Werewolf Green Agent (A2A)")
     parser.add_argument("--host", type=str, default="0.0.0.0")
     parser.add_argument("--port", type=int, default=9009)
+    # Accept --card-url for AgentBeats-generated compose compatibility.
+    parser.add_argument("--card-url", type=str, default="", help="Public URL for agent card (overrides env)")
     args = parser.parse_args()
 
     skill = AgentSkill(
@@ -137,7 +180,7 @@ def main() -> None:
         tags=["gaming", "evaluation", "social-deduction"],
     )
 
-    public_url = os.environ.get("GREEN_AGENT_PUBLIC_URL", "").strip()
+    public_url = args.card_url.strip() or os.environ.get("GREEN_AGENT_PUBLIC_URL", "").strip()
     card_url = public_url or f"http://{args.host}:{args.port}"
 
     card = AgentCard(

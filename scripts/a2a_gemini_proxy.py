@@ -389,6 +389,7 @@ def main():
     parser.add_argument("--temperature", type=float, default=DEFAULT_TEMPERATURE)
     parser.add_argument("--max-output-tokens", type=int, default=DEFAULT_MAX_OUTPUT_TOKENS)
     parser.add_argument("--log-dir", default="", help="Optional directory to write a timestamped log file")
+    parser.add_argument("--card-url", default="", help="Ignored (compat with AgentBeats compose)")
     args = parser.parse_args()
 
     api_key = os.environ.get("GEMINI_API_KEY")

@@ -106,6 +106,8 @@ Commands
 - build out agents: docker compose -f infra/docker-compose.agentbeats.yml up --build --abort-on-container-exit
 
 - Pushed to GCR
+docker build -t agentbeats_green_agent -f infra/Dockerfile.green .
+docker build -t agentbeats_purple_agent -f infra/Dockerfile.purple .
 docker tag agentbeats_green_agent ghcr.io/sulmank/agentbeats-green:latest
 docker tag agentbeats_purple_agent ghcr.io/sulmank/agentbeats-purple:latest
 docker push ghcr.io/sulmank/agentbeats-green:latest

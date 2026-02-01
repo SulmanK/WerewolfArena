@@ -32,7 +32,7 @@
  - Metrics track vote accuracy/focus, misvotes, flip rates, survival, and soft safety flags as proxies for deception/detection; no heavy classifiers (paper-aligned).
 
 ## 4.2) AgentBeats A2A Compatibility (inspired by tau-bench green agent blog)
-- Agent interface: define an `AgentInterface` abstraction with implementations: (a) ScriptedAgent (rule-based bids/debate/votes/night actions), (b) LocalModelAgent (optional, points to a local model server), (c) A2AAgent adapter (sends A2A requests to an external agent). Docker default = scripted only, offline.
+- Agent interface: define an `AgentInterface` abstraction with implementations: (a) NpcAgent (rule-based bids/debate/votes/night actions), (b) LocalModelAgent (optional, points to a local model server), (c) A2AAgent adapter (sends A2A requests to an external agent). Docker default = scripted only, offline.
 - A2A schema: observation payload includes public chat transcript, role card, graveyard, round/phase, remaining players, and private info (other wolf if role). Actions: `speak{text}`, `vote{target}`, `night_power{target}`. Include step budget and seed in request. Provide curl examples.
 - Determinism: seed Python `random` and any model sampling; seed order for player names, bids, speaker selection. Constrain utterance length and turn caps in config; enforce determinism in parallelism (optionally disable threads or use ordered execution).
 - Runner contract: `python -m benchmark.run --track werewolf --seed 123 --output scores.json` maps each game tick to A2A requests when A2A mode is on; scripted agents used otherwise.
@@ -107,7 +107,7 @@
 - Requirements to add:
   - Config/env: document `A2A_ENDPOINT` (e.g., a local proxy that calls Gemini) and any provider keys (e.g., `GEMINI_API_KEY`). Keep Docker default offline unless explicitly set.
   - Runner flag: `--a2a-endpoint http://host:port` (already present) to delegate actions to external agent.
-  - Adapter: extend `agents/a2a_adapter.py` to include provider/model params and retries/timeouts; ensure deterministic seeding where possible.
+  - Adapter: extend `agents/a2a_agent.py` to include provider/model params and retries/timeouts; ensure deterministic seeding where possible.
   - Server: optional proxy server that translates A2A obs->Gemini prompt->A2A action; keep disabled by default.
   - Safety: log provider/model/version, temperature, and prompts for reproducibility; mark outputs as “API mode” in scorecards/logs.
   - Tests: add a dry-run test that skips if no `A2A_ENDPOINT`; keep CI offline.
@@ -122,7 +122,7 @@
 ## 13.4) Online A2A/LLM Mode (Gemini) – Implementation Checklist
 - Pattern: mirror tau agentify flow — green orchestrator sends observations to an A2A endpoint; a proxy calls Gemini and returns A2A actions. Offline scripted remains the default; API mode is opt-in.
 - Checklist:
-  - Proxy: add `scripts/a2a_gemini_proxy.py` to translate our obs → Gemini prompt → action JSON (speak/vote/night_power). Configurable model, temperature, timeouts; read `GEMINI_API_KEY`. **Done** (default `gemini-2.5-flash-lite`).
+  - Proxy: add `purple/proxies/a2a_gemini_proxy.py` to translate our obs → Gemini prompt → action JSON (speak/vote/night_power). Configurable model, temperature, timeouts; read `GEMINI_API_KEY`. **Done** (default `gemini-2.5-flash-lite`).
   - Runner mapping: support delegating one or more roles/seats to A2A while others stay scripted (e.g., `--a2a-endpoint http://host:port` or a map config). **Partial** (single endpoint for all seats; no per-role map yet).
   - Observations: include `round`, `phase`, `role`, `name`, `seed`, `remaining_players`, `graveyard`, `public_debate`, `private`. Validate before sending.
   - Actions: expect `{"type": "speak"|"vote"|"night_power", "content"/"target": ...}`; validate targets vs alive set; reject nulls.
@@ -132,7 +132,7 @@
   - Tests: add a skip-by-default integration test that runs only if `A2A_ENDPOINT` is set; CI remains offline. **Pending**.
 
 ## 14) Status Checklist (current)
-- Done: scaffold (`configs/`, `fixtures/`, `scorer/`, `agents/`, `benchmark/`, `docker/`); initial configs; deterministic engine; scripted baseline; richer metrics (vote accuracy/focus, misvote/on-wolf, flips, survival, safety heuristics); runner (CLI, JSON/JSONL, `--a2a-endpoint`); logging helper; refreshed fixtures (`golden_score.json`, `sample_log.jsonl`, `aggregate.json`); Dockerfile; tests passing; A2A schema/adapter and HTTP server stub; Make targets; pinned requirements (pytest, tqdm, pyyaml, requests, google-generativeai, python-dotenv[cli]); README with demo and online mode; CI smoke + GH Actions; Gemini proxy (`scripts/a2a_gemini_proxy.py`) working.
+- Done: scaffold (`configs/`, `fixtures/`, `scorer/`, `agents/`, `benchmark/`, `docker/`); initial configs; deterministic engine; scripted baseline; richer metrics (vote accuracy/focus, misvote/on-wolf, flips, survival, safety heuristics); runner (CLI, JSON/JSONL, `--a2a-endpoint`); logging helper; refreshed fixtures (`golden_score.json`, `sample_log.jsonl`, `aggregate.json`); Dockerfile; tests passing; A2A schema/adapter and HTTP server stub; Make targets; pinned requirements (pytest, tqdm, pyyaml, requests, google-generativeai, python-dotenv[cli]); README with demo and online mode; CI smoke + GH Actions; Gemini proxy (`purple/proxies/a2a_gemini_proxy.py`) working.
 - To do: tag score/logs with mode=api when A2A used; optional per-role/seat endpoint mapping; richer fixtures/goldens (add API-mode goldens/checksums); optional skip-by-default integration test for A2A endpoint; pin Docker runtime deps fully; minor README/demo polish; (optional) stronger safety/deception heuristics.
 
 ## 15) Deployment Checklist (AgentBeats Controller)

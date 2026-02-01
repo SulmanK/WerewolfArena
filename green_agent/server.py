@@ -19,6 +19,7 @@ from a2a.server.events import EventQueue
 from a2a.server.tasks import InMemoryTaskStore, TaskUpdater
 from a2a.types import AgentCard, AgentCapabilities, AgentSkill, Part, DataPart
 from a2a.utils import new_task, new_agent_text_message
+from core.config import RunConfig
 
 
 def _get_message_text(context: RequestContext) -> str:
@@ -84,12 +85,13 @@ def _run_agent_vs_npc(payload: Dict[str, Any]) -> Dict[str, Any]:
         )
 
     config = payload.get("config", {})
-    num_games = int(config.get("num_games", config.get("num_tasks", 40)))
-    shuffle_seed = int(config.get("shuffle_seed", 20206))
-    max_rounds = int(config.get("max_rounds", 10))
-    max_turns = int(config.get("max_turns", 8))
+    defaults = RunConfig()
+    num_games = int(config.get("num_games", config.get("num_tasks", defaults.num_games)))
+    shuffle_seed = int(config.get("shuffle_seed", defaults.shuffle_seed))
+    max_rounds = int(config.get("max_rounds", defaults.max_rounds))
+    max_turns = int(config.get("max_turns", defaults.max_turns))
     role_weights = str(config.get("role_weights", ""))
-    seed_start = int(config.get("seed_start", 1000))
+    seed_start = int(config.get("seed_start", defaults.seed_start))
 
     output_path = config.get("output", "/app/results/agentbeats_results.json")
     log_dir = config.get("log_dir", "/app/results/agentbeats_logs")

@@ -3,8 +3,8 @@
 import json
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from benchmark import protocol
-from agents.scripted import ScriptedAgent
-import random
+from agents.npc_agent import NpcAgent
+from core.schema import build_observation
 
 
 class A2AHandler(BaseHTTPRequestHandler):
@@ -24,19 +24,25 @@ class A2AHandler(BaseHTTPRequestHandler):
         role = obs.get("role", "Villager")
         name = obs.get("name", "Agent")
         seed = obs.get("seed", 0)
-        agent = ScriptedAgent(name=name, role=role, seed=seed)
-        if obs.get("phase") == "day":
-            content = agent.speak(obs.get("public_debate", []))
-            action = {"type": "speak", "content": content}
-        elif obs.get("phase") == "day_vote":
-            players = obs.get("remaining_players", [])
-            target = agent.vote(players)
-            action = {"type": "vote", "target": target}
+        agent = NpcAgent(name=name, role=role, seed=seed)
+        phase = obs.get("phase", "day")
+        observation = build_observation(
+            round_num=int(obs.get("round", 0)),
+            phase=phase,
+            role=role,
+            name=name,
+            seed=seed,
+            remaining_players=obs.get("remaining_players", []),
+            graveyard=obs.get("graveyard", []),
+            public_debate=obs.get("public_debate", []),
+            private=obs.get("private", {}),
+        )
+        if phase == "day":
+            action = agent.speak(observation).to_dict()
+        elif phase == "day_vote":
+            action = agent.vote(observation).to_dict()
         else:
-            players = obs.get("remaining_players", [])
-            wolves = obs.get("wolves", [])
-            target = agent.night_power(players, wolves)
-            action = {"type": "night_power", "target": target}
+            action = agent.night_power(observation).to_dict()
 
         body = json.dumps(action).encode("utf-8")
         self.send_response(200)

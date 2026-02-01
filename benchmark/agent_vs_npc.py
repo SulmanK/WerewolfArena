@@ -94,6 +94,7 @@ def _rng_for_game(shuffle_seed: int, seed: int) -> random.Random:
 def main():
     parser = argparse.ArgumentParser(description="Run Agent vs NPC baseline (role-balanced)")
     parser.add_argument("--a2a-endpoint", type=str, required=True, help="A2A agent endpoint")
+    parser.add_argument("--agent-kind", type=str, default="a2a", help="Agent kind (a2a or scripted)")
     parser.add_argument("--num-games", type=int, default=40, help="Total games (40 default, 12 for quick)")
     parser.add_argument("--preset", type=int, choices=[12, 40], help="Shortcut for common schedules (12 or 40)")
     parser.add_argument("--shuffle-seed", type=int, required=True, help="Seed for role/seat shuffling")
@@ -140,8 +141,8 @@ def main():
                 "seed": seed,
                 "max_debate_turns": args.max_turns,
                 "max_rounds": args.max_rounds,
-                "a2a_endpoint": args.a2a_endpoint,
-                "a2a_seats": [seat],
+                "a2a_endpoint": args.a2a_endpoint if args.agent_kind == "a2a" else "",
+                "a2a_seats": [seat] if args.agent_kind == "a2a" else [],
                 "player_names": DEFAULT_PLAYERS,
             }
         )

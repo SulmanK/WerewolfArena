@@ -1,7 +1,6 @@
 """Simple CI smoke: run seeds and assert winners present."""
 
 from benchmark import game
-from configs import seeds
 
 
 def load_seeds():

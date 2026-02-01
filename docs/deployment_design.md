@@ -22,7 +22,7 @@ Deploy a purple agent (player) and green agent (evaluator) to AgentBeats and sub
 ### Green agent (evaluator)
 - Orchestrates games, runs NPCs, computes metrics.
 - A2A server on port 9009.
-- Uses Gemini via A2A proxy for the evaluated agent seat (`scripts/a2a_gemini_proxy.py`).
+- Uses Gemini via A2A proxy for the evaluated agent seat (`purple/proxies/a2a_gemini_proxy.py`).
 - Requires `GEMINI_API_KEY` for the Gemini proxy.
 
 ### Purple agent (player)
@@ -95,7 +95,7 @@ docker build -t local-purple -f infra/Dockerfile.purple .
 
 2) Run Gemini proxy (A2A endpoint)
 ```
-python scripts/a2a_gemini_proxy.py --host 0.0.0.0 --port 8080 --model gemini-2.5-flash-lite
+python purple/proxies/a2a_gemini_proxy.py --host 0.0.0.0 --port 8080 --model gemini-2.5-flash-lite
 ```
 
 3) Run integration test

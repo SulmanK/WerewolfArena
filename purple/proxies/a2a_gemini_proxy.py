@@ -1,7 +1,7 @@
 """A2A proxy to Gemini (gemini-2.5-flash-lite by default).
 
 Usage:
-  GEMINI_API_KEY=... python scripts/a2a_gemini_proxy.py --host 0.0.0.0 --port 8080 \
+  GEMINI_API_KEY=... python purple/proxies/a2a_gemini_proxy.py --host 0.0.0.0 --port 8080 \
       --model gemini-2.5-flash-lite --temperature 0.2 --max-output-tokens 256
 
 Notes:

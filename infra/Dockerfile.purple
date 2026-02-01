@@ -20,5 +20,5 @@ RUN mkdir -p /app/logs
 
 EXPOSE 8100
 
-ENTRYPOINT ["python", "scripts/a2a_gemini_proxy.py"]
+ENTRYPOINT ["python", "purple/proxies/a2a_gemini_proxy.py"]
 CMD ["--host", "0.0.0.0", "--port", "8100", "--model", "gemini-2.5-flash-lite", "--log-dir", "logs"]

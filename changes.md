@@ -82,7 +82,7 @@ $ python -m benchmark.runner --seed 123 --max-turns 4 --max-rounds 4 --a2a-endpo
   "seed": 123
 }
 ```
-- Change: tightened Gemini proxy prompts for Werewolves to explicitly avoid targeting other wolves during day_vote and night phases. Added role-specific hint in `scripts/a2a_gemini_proxy.py` to reduce wolf-on-wolf votes/attacks.
+- Change: tightened Gemini proxy prompts for Werewolves to explicitly avoid targeting other wolves during day_vote and night phases. Added role-specific hint in `purple/proxies/a2a_gemini_proxy.py` to reduce wolf-on-wolf votes/attacks.
 - Rationale: Prior runs showed high wolf_on_wolf_rate and low wolf_vote_focus, causing self-sabotage. The hint nudges wolves toward non-wolf targets to make online runs more realistic.
 
 ## 2025-12-03 (later)

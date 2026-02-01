@@ -15,10 +15,11 @@ Data flow:
 AgentBeats -> Green (A2A) -> Purple (A2A) + NPCs -> Results -> Leaderboard
 
 ## Key modules
+- `core/`: Shared observation/action types, schema helpers, config defaults.
 - `green_agent/server.py`: A2A server that runs `benchmark.agent_vs_npc` and returns results.
 - `benchmark/agent_vs_npc.py`: Role-balanced schedule, seeded games, aggregate metrics.
 - `benchmark/game.py`: Seeded game logic, role assignment, voting, and state transitions.
-- `scripts/a2a_gemini_proxy.py`: Optional Gemini proxy for A2A actions.
+- `purple/proxies/a2a_gemini_proxy.py`: Optional Gemini proxy for A2A actions.
 - `scorer/`: Metric calculation and aggregation.
 - `infra/`: Dockerfiles and local compose test stack.
 

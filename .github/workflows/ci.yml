@@ -21,4 +21,4 @@ jobs:
           python -m pytest
       - name: Smoke seeds
         run: |
-          python scripts/ci_smoke.py
+          python -m scripts.ci_smoke

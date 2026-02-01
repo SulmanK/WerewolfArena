@@ -1,12 +1,15 @@
-"""Deterministic scripted baseline agent (no LM calls)."""
+"""Deterministic NPC baseline agent (no LM calls)."""
 
 import random
 import re
 from typing import Dict, List, Optional, Set
 
+from agents.base import AgentBase
+from core.types import Action, Observation
 
-class ScriptedAgent:
-    """Rule-based agent for reproducible baselines."""
+
+class NpcAgent(AgentBase):
+    """Rule-based NPC agent for reproducible baselines."""
 
     def __init__(self, name: str, role: str, seed: int):
         self.name = name
@@ -122,7 +125,7 @@ class ScriptedAgent:
         pool = available or candidates
         return self.rng.choice(pool)
 
-    def speak(
+    def _speak_impl(
         self,
         debate_history: List[str],
         round_num: int = 0,
@@ -184,7 +187,7 @@ class ScriptedAgent:
         ]
         return self._pick_unique_line(candidates, used_lines)
 
-    def vote(
+    def _vote_impl(
         self,
         alive_players: List[str],
         debate_history: Optional[List[str]] = None,
@@ -209,7 +212,7 @@ class ScriptedAgent:
             target = self._most_suspicious(alive_players)
             return target if target in candidates else self.rng.choice(candidates)
 
-    def night_power(
+    def _night_power_impl(
         self,
         alive_players: List[str],
         wolves: List[str],
@@ -242,6 +245,35 @@ class ScriptedAgent:
                 choices = [p for p in alive_players if p != self.name]
             return max(choices, key=lambda p: self.beliefs.get(p, 0.3)) if choices else None
         return None
+
+    def speak(self, obs: Observation) -> Action:
+        content = self._speak_impl(
+            obs.public_debate,
+            round_num=obs.round,
+            alive_players=obs.remaining_players,
+            graveyard=obs.graveyard,
+            wolves=(obs.private or {}).get("wolves"),
+        )
+        return Action(type="speak", content=content)
+
+    def vote(self, obs: Observation) -> Action:
+        target = self._vote_impl(
+            obs.remaining_players,
+            debate_history=obs.public_debate,
+            round_num=obs.round,
+            graveyard=obs.graveyard,
+            wolves=(obs.private or {}).get("wolves"),
+        )
+        return Action(type="vote", target=target)
+
+    def night_power(self, obs: Observation) -> Action:
+        target = self._night_power_impl(
+            obs.remaining_players,
+            wolves=(obs.private or {}).get("wolves") or [],
+            round_num=obs.round,
+            graveyard=obs.graveyard,
+        )
+        return Action(type="night_power", target=target)
 
     def update_seer_inspection(self, target: str, role: str):
         if role == "Werewolf":

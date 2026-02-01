@@ -3,8 +3,10 @@
 import random
 from typing import Dict, List, Optional, Tuple
 
-from agents.scripted import ScriptedAgent
-from agents.a2a_adapter import A2AAgent, A2AClient
+from agents.base import AgentBase
+from agents.a2a_agent import A2AClient
+from agents.registry import get_agent
+from core.schema import build_observation
 
 
 Role = str
@@ -58,7 +60,7 @@ class Game:
         self.roles = assign_roles(player_names, seed)
         self.current_round_num = 0
         self.a2a_endpoint = a2a_endpoint
-        self.agents: Dict[str, ScriptedAgent] = {}
+        self.agents: Dict[str, AgentBase] = {}
         client = A2AClient(a2a_endpoint) if a2a_endpoint else None
         seat_filter = set(a2a_seats or [])
         role_filter = set(r.lower() for r in (a2a_roles or []))
@@ -70,15 +72,32 @@ class Game:
                 else:
                     use_a2a = True
             if use_a2a:
-                self.agents[name] = A2AAgent(name=name, role=role, seed=seed, client=client)
+                self.agents[name] = get_agent(
+                    "a2a",
+                    name=name,
+                    role=role,
+                    seed=seed,
+                    client=client,
+                    url=a2a_endpoint,
+                )
             else:
-                self.agents[name] = ScriptedAgent(name=name, role=role, seed=seed)
+                self.agents[name] = get_agent("npc", name=name, role=role, seed=seed)
         self.log = {
             "seed": seed,
             "roles": self.roles,
             "rounds": [],
             "winner": None,
         }
+
+    def _private_obs(self, name: str, wolves: List[str]) -> Dict:
+        role = self.roles.get(name)
+        if role == "Werewolf":
+            return {"wolves": wolves or []}
+        if role == "Seer":
+            agent = self.agents[name]
+            checks = getattr(agent, "seer_checks", [])
+            return {"seer_checks": list(checks)}
+        return {}
 
     def alive_players(self) -> List[str]:
         return [name for name, agent in self.agents.items() if agent.alive]
@@ -97,27 +116,56 @@ class Game:
 
         if wolves:
             wolf_controller = sorted(wolves)[0]
-            wolf_target = self.agents[wolf_controller].night_power(
-                alive, wolves, round_num=self.current_round_num, graveyard=graveyard
+            obs = build_observation(
+                round_num=self.current_round_num,
+                phase="night",
+                role=self.roles[wolf_controller],
+                name=wolf_controller,
+                seed=self.seed,
+                remaining_players=alive,
+                graveyard=graveyard,
+                public_debate=[],
+                private=self._private_obs(wolf_controller, wolves),
             )
+            wolf_target = self.agents[wolf_controller].night_power(obs).target
             if wolf_target not in alive or wolf_target in wolves:
                 choices = [p for p in alive if p not in wolves]
                 wolf_target = self.rng.choice(choices) if choices else None
 
         doctors = [p for p in alive if self.agents[p].role == "Doctor"]
         if doctors:
-            doctor_target = self.agents[doctors[0]].night_power(
-                alive, wolves, round_num=self.current_round_num, graveyard=graveyard
+            doc = doctors[0]
+            obs = build_observation(
+                round_num=self.current_round_num,
+                phase="night",
+                role=self.roles[doc],
+                name=doc,
+                seed=self.seed,
+                remaining_players=alive,
+                graveyard=graveyard,
+                public_debate=[],
+                private=self._private_obs(doc, wolves),
             )
+            doctor_target = self.agents[doc].night_power(obs).target
 
         seers = [p for p in alive if self.agents[p].role == "Seer"]
         if seers:
-            seer_target = self.agents[seers[0]].night_power(
-                alive, wolves, round_num=self.current_round_num, graveyard=graveyard
+            seer = seers[0]
+            obs = build_observation(
+                round_num=self.current_round_num,
+                phase="night",
+                role=self.roles[seer],
+                name=seer,
+                seed=self.seed,
+                remaining_players=alive,
+                graveyard=graveyard,
+                public_debate=[],
+                private=self._private_obs(seer, wolves),
             )
+            seer_target = self.agents[seer].night_power(obs).target
             if seer_target:
                 seer_reveal = self.roles[seer_target]
-                self.agents[seers[0]].update_seer_inspection(seer_target, seer_reveal)
+                self.agents[seer].update_seer_inspection(seer_target, seer_reveal)
 
         if wolf_target and wolf_target != doctor_target:
             self.agents[wolf_target].mark_dead()
@@ -137,13 +185,18 @@ class Game:
         # Avoid duplicate speakers within the same round to reduce repeated outputs.
         speaker_order = self.rng.sample(alive, k=min(self.max_debate_turns, len(alive)))
         for speaker in speaker_order:
-            utterance = self.agents[speaker].speak(
-                [f"{a}:{t}" for a, t in debate],
+            obs = build_observation(
                 round_num=round_num,
-                alive_players=alive,
+                phase="day",
+                role=self.roles[speaker],
+                name=speaker,
+                seed=self.seed,
+                remaining_players=alive,
                 graveyard=[p for p in self.roles if p not in alive],
-                wolves=self.living_wolves(),
+                public_debate=[f"{a}:{t}" for a, t in debate],
+                private=self._private_obs(speaker, self.living_wolves()),
             )
+            utterance = self.agents[speaker].speak(obs).content or ""
             debate.append((speaker, utterance))
         return debate
 
@@ -152,13 +205,18 @@ class Game:
         debate_history = [f"{a}:{t}" for a, t in debate]
         votes: Dict[str, Optional[str]] = {}
         for name in alive:
-            votes[name] = self.agents[name].vote(
-                alive,
-                debate_history=debate_history,
+            obs = build_observation(
                 round_num=self.current_round_num,
+                phase="day_vote",
+                role=self.roles[name],
+                name=name,
+                seed=self.seed,
+                remaining_players=alive,
                 graveyard=[p for p in self.roles if p not in alive],
-                wolves=self.living_wolves(),
+                public_debate=debate_history,
+                private=self._private_obs(name, self.living_wolves()),
             )
+            votes[name] = self.agents[name].vote(obs).target
         choice = majority_vote(votes, self.rng)
         if choice:
             self.agents[choice].mark_dead()

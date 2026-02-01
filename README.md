@@ -39,7 +39,7 @@ Game mechanics are seeded (role assignment, order, tie-breaking). If you use an 
 LLM (Gemini proxy), outputs can still vary slightly across runs. For best stability:
 - Keep `shuffle_seed` fixed
 - Pin images/tags
-- Use deterministic proxy settings (enabled by default in `scripts/a2a_gemini_proxy.py`)
+- Use deterministic proxy settings (enabled by default in `purple/proxies/a2a_gemini_proxy.py`)
 
 ## Quickstart (local)
 Single game:
@@ -52,14 +52,14 @@ Multi-seed aggregate:
 python -m benchmark.multi --seeds-file configs/seeds.txt --max-turns 4 --max-rounds 4 --output fixtures/aggregate.json
 ```
 
-Agent vs NPC (role-balanced):
+Agent vs NPC (LLM purple via A2A, role-balanced):
 ```
 python -m benchmark.agent_vs_npc --a2a-endpoint http://localhost:8080 --num-games 12 --shuffle-seed 20206 --output fixtures/agent_vs_npc_12.json --log-dir fixtures/agent_vs_npc_logs
 ```
 
 ## Tested commands (local)
 ```
-python -m dotenv run -- python scripts/a2a_gemini_proxy.py --model gemini-2.5-flash-lite --host 0.0.0.0 --port 8080 --log-dir logs
+python -m dotenv run -- python purple/proxies/a2a_gemini_proxy.py --model gemini-2.5-flash-lite --host 0.0.0.0 --port 8080 --log-dir logs
 python -m benchmark.agent_vs_npc --a2a-endpoint http://localhost:8080 --num-games 12 --sanity-check 12 --shuffle-seed 20206 --output fixtures/agent_vs_npc_12.json --log-dir fixtures/agent_vs_npc_logs
 ```
 
@@ -191,10 +191,26 @@ Expected response schema:
 {"type": "speak|vote|night_power", "content"?: "...", "target"?: "Name"}
 ```
 
+## Add your own purple agent
+Purple agents are expected to run as LLM-backed A2A services.
+1) **HTTP A2A (recommended)**: run an external agent server that implements the A2A
+   schema and point the benchmark at it via `--a2a-endpoint`.
+2) **Python class (advanced)**: implement `AgentBase` and register it in
+   `agents/registry.py` to plug in directly without an HTTP server.
+
+## Contributing: add a purple agent in 3 steps
+1) Build or run your purple agent as an A2A HTTP service (must return `speak`, `vote`, `night_power`).
+2) Start the benchmark and point it at your agent:
+   `python -m benchmark.agent_vs_npc --a2a-endpoint http://localhost:8080 --num-games 12 --shuffle-seed 20206 --output fixtures/agent_vs_npc_12.json --log-dir fixtures/agent_vs_npc_logs`
+3) Inspect `fixtures/agent_vs_npc_12.json` and logs to compare results.
+
+See `purple/README.md` for quickstart notes and the Gemini proxy path.
+
 ## Repo map
 - `benchmark/` game engine, runner, A2A protocol, logs
 - `green_agent/` A2A green evaluator server
 - `agents/` scripted baselines and adapters
+- `purple/` purple agent helpers and proxies
 - `scorer/` metrics and aggregation
 - `infra/` Dockerfiles and compose
 - `scripts/` Gemini proxy and helpers

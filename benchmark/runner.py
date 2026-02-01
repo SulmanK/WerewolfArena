@@ -4,7 +4,6 @@ import argparse
 import json
 from benchmark import game
 from benchmark import logging as log_utils
-from agents.a2a_adapter import A2AClient
 from scorer import score
 
 
